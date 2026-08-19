@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>epigraphAI — Full Pipeline Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Brahmi&family=Noto+Sans+Tamil:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --stone:#ddd3bf; --stone-dark:#c3b596; --ink:#211c17; --paper:#f6f1e4;
+    --ochre:#b1471f; --ochre-dim:#8f3a18; --verdigris:#5c7c66; --muted:#8a8070;
+    --radius:2px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--stone);
+    background-image:radial-gradient(ellipse at 20% 10%, rgba(255,255,255,.25), transparent 60%),
+                      radial-gradient(ellipse at 80% 95%, rgba(0,0,0,.05), transparent 60%);
+    font-family:'Work Sans', sans-serif; color:var(--ink);
+    min-height:100vh; padding:26px 20px 60px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ochre);display:flex;align-items:center;gap:8px;}
+  .eyebrow::before{content:"⌁";font-size:13px;}
+  h1{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(26px,4vw,40px);margin:6px 0 4px;letter-spacing:-.01em;}
+  h1 span{color:var(--ochre);}
+  .subtitle{color:var(--muted);font-size:14.5px;max-width:680px;line-height:1.5;}
+  .disclaimer{margin-top:14px;background:var(--paper);border:1px solid var(--stone-dark);border-left:3px solid var(--ochre);padding:10px 14px;font-size:12.5px;line-height:1.5;}
+  .disclaimer b{color:var(--ochre-dim);}
+
+  /* tabs */
+  .tabbar{display:flex;flex-wrap:wrap;gap:6px;margin-top:20px;border-bottom:1px solid var(--stone-dark);padding-bottom:0;}
+  .tab-btn{
+    font-family:'JetBrains Mono',monospace;font-size:11.5px;letter-spacing:.02em;
+    background:transparent;border:1px solid transparent;border-bottom:none;
+    padding:9px 12px 10px;cursor:pointer;color:var(--muted);display:flex;align-items:center;gap:7px;
+    border-radius:var(--radius) var(--radius) 0 0;
+  }
+  .tab-btn .dot{width:6px;height:6px;border-radius:50%;background:var(--stone-dark);flex:none;}
+  .tab-btn.done .dot{background:var(--verdigris);}
+  .tab-btn.active{color:var(--ink);background:var(--paper);border-color:var(--stone-dark);}
+  .tab-btn.active .dot{background:var(--ochre);}
+  .tab-btn:hover{color:var(--ink);}
+
+  .tabpanel{display:none;background:var(--paper);border:1px solid var(--stone-dark);border-top:none;padding:22px;}
+  .tabpanel.active{display:block;}
+  .stage-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;flex-wrap:wrap;gap:8px;}
+  .stage-head h2{font-family:'Fraunces',serif;font-size:21px;font-weight:600;margin:0;}
+  .stage-head .stage-note{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+
+  .grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+  @media (max-width:860px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+  .card{background:#fbf7ec;border:1px solid var(--stone-dark);border-radius:var(--radius);padding:14px;}
+  .card h3{margin:0 0 10px;font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--stone-dark);padding-bottom:7px;}
+
+  button{font-family:'Work Sans',sans-serif;font-size:12.5px;font-weight:500;border:1px solid var(--stone-dark);background:var(--stone);color:var(--ink);padding:7px 12px;border-radius:var(--radius);cursor:pointer;}
+  button:hover{background:var(--stone-dark);}
+  button.primary{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  button.primary:hover{background:var(--ochre-dim);border-color:var(--ochre-dim);}
+  button.active-filter{background:var(--ochre);color:var(--paper);border-color:var(--ochre);}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  input[type=file]{display:none;}
+  input[type=text], textarea, select{
+    font-family:'Work Sans',sans-serif;font-size:13px;width:100%;
+    border:1px solid var(--stone-dark);background:#fff;color:var(--ink);
+    padding:7px 9px;border-radius:var(--radius);
+  }
+  textarea{resize:vertical;min-height:70px;font-family:'JetBrains Mono',monospace;font-size:12.5px;}
+  label.field{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.05em;}
+
+  .canvas-stage{position:relative;background:repeating-conic-gradient(#00000008 0% 25%, transparent 0% 50%) 50%/16px 16px;border:1px solid var(--stone-dark);display:flex;align-items:center;justify-content:center;min-height:300px;overflow:hidden;}
+  .canvas-stage canvas{position:absolute;top:0;left:0;image-rendering:pixelated;}
+  #overlay{pointer-events:none;}
+  .empty-state{font-size:13px;color:var(--muted);text-align:center;padding:26px;font-family:'JetBrains Mono',monospace;}
+  .slider-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;color:var(--muted);}
+  .slider-row input[type=range]{flex:1;accent-color:var(--ochre);}
+
+  .sim-banner{font-size:11px;color:var(--ochre-dim);background:#f0e6d3;border:1px dashed var(--ochre);padding:8px 10px;margin-bottom:12px;line-height:1.5;font-family:'JetBrains Mono',monospace;}
+  .real-banner{font-size:11px;color:#3f5847;background:#e7efe6;border:1px dashed var(--verdigris);padding:8px 10px;margin-bottom:12px;line-height:1.5;font-family:'JetBrains Mono',monospace;}
+
+  .sign-row{display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--stone-dark);gap:8px;}
+  .sign-row .sign{font-family:'Noto Sans Brahmi','JetBrains Mono',monospace;font-size:15px;}
+  .conf{color:var(--verdigris);}
+  .conf.low{color:var(--ochre);}
+  .rec-empty{font-size:12.5px;color:var(--muted);font-style:italic;}
+  .sign-row input[type=checkbox]{accent-color:var(--verdigris);}
+
+  table.data-table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:12px;}
+  table.data-table th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--stone-dark);padding:5px 6px;}
+  table.data-table td{padding:5px 6px;border-bottom:1px dashed var(--stone-dark);}
+  table.data-table tr:last-child td{border-bottom:none;}
+  .bar{height:6px;background:var(--stone-dark);border-radius:3px;overflow:hidden;margin-top:3px;}
+  .bar-fill{height:100%;background:var(--verdigris);}
+
+  .compare-col{border:1px solid var(--stone-dark);border-radius:var(--radius);padding:14px;background:#fbf7ec;text-align:center;}
+  .compare-col .glyph{font-size:56px;line-height:1;margin:14px 0;}
+  .compare-col.tamil .glyph{font-family:'Noto Sans Tamil',sans-serif;font-weight:600;}
+  .compare-col.brahmi .glyph{font-family:'Noto Sans Brahmi',sans-serif;}
+  .compare-col .period{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+  .compare-col .note{font-size:11.5px;color:var(--muted);margin-top:10px;line-height:1.5;text-align:left;}
+  .compare-col.placeholder .glyph{font-size:28px;color:var(--muted);border:1px dashed var(--stone-dark);border-radius:50%;width:70px;height:70px;display:flex;align-items:center;justify-content:center;margin:14px auto;}
+
+  .checklist label{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.4;margin-bottom:10px;cursor:pointer;}
+  .checklist input{margin-top:2px;accent-color:var(--verdigris);}
+  .status-badge{display:inline-block;margin-top:6px;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.04em;padding:5px 10px;border-radius:var(--radius);background:var(--ochre);color:var(--paper);}
+  .status-badge.verified{background:var(--verdigris);}
+  .footnote{font-size:11px;color:var(--muted);margin-top:12px;line-height:1.5;}
+  .stat-line{font-size:13px;margin:4px 0;}
+  .stat-line b{color:var(--ochre-dim);}
+  .thumb{width:44px;height:30px;object-fit:cover;border:1px solid var(--stone-dark);vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">prototype · full pipeline</div>
+    <h1>epigraph<span>AI</span> — Nine-Stage Assistant</h1>
+    <p class="subtitle">A complete walk-through of the proposed methodology: Documentation → Image Enhancement → Data Preparation → Sign Recognition → Pattern Analysis → Comparative Study → Human Verification → Interpretation → Digital Database.</p>
+    <div class="disclaimer">
+      <b>Real vs. simulated:</b> filters, sign segmentation, pattern-analysis statistics, corpus storage and JSON export all run as actual JavaScript on your data. Glyph identification, dating, and interpretive readings are <b>simulated for demonstration</b> — a real system needs a model trained on large expert-annotated corpora, and every output here still requires an epigraphist's sign-off.
+    </div>
+  </header>
+
+  <div class="tabbar" id="tabbar">
+    <button class="tab-btn active" data-tab="1"><span class="dot"></span>1 · Documentation</button>
+    <button class="tab-btn" data-tab="2"><span class="dot"></span>2 · Enhancement</button>
+    <button class="tab-btn" data-tab="3"><span class="dot"></span>3 · Data Prep</button>
+    <button class="tab-btn" data-tab="4"><span class="dot"></span>4 · Recognition</button>
+    <button class="tab-btn" data-tab="5"><span class="dot"></span>5 · Pattern Analysis</button>
+    <button class="tab-btn" data-tab="6"><span class="dot"></span>6 · Comparative Study</button>
+    <button class="tab-btn" data-tab="7"><span class="dot"></span>7 · Verification</button>
+    <button class="tab-btn" data-tab="8"><span class="dot"></span>8 · Interpretation</button>
+    <button class="tab-btn" data-tab="9"><span class="dot"></span>9 · Database</button>
+  </div>
+
+  <!-- ===================== STAGE 1: DOCUMENTATION ===================== -->
+  <div class="tabpanel active" id="panel-1">
+    <div class="stage-head"><h2>Documentation</h2><span class="stage-note">load / capture the source image</span></div>
+    <div class="real-banner">✓ Real: image loading and canvas rendering. The sample is a synthetically generated stone texture with genuine Brahmi Unicode glyphs — not a real inscription.</div>
+    <div class="toolbar">
+      <button class="primary" id="btnSample">Load sample inscription</button>
+      <button id="btnUploadTrigger">Upload image…</button>
+      <input type="file" id="fileInput" accept="image/*">
+    </div>
+    <div class="canvas-stage" id="stageBox">
+      <div class="empty-state" id="emptyState">No image loaded yet.<br>Load the sample, or upload a photograph of an inscription or manuscript page.</div>
+      <canvas id="work" width="480" height="320"></canvas>
+      <canvas id="overlay" width="480" height="320"></canvas>
+    </div>
+    <p class="footnote">In real fieldwork this stage covers RTI (Reflectance Transformation Imaging), photogrammetry / 3D scanning, and consistent raking-light photography — far richer than a single flat image, but a single image is what a browser can capture here.</p>
+  </div>
+
+  <!-- ===================== STAGE 2: ENHANCEMENT ===================== -->
+  <div class="tabpanel" id="panel-2">
+    <div class="stage-head"><h2>Image Enhancement</h2><span class="stage-note">real pixel-level filters</span></div>
+    <div class="real-banner">✓ Real: every filter below is computed from the original pixel data, live, in your browser.</div>
+    <div class="toolbar" id="filterBar">
+      <button data-filter="original">Original</button>
+      <button data-filter="gray">Grayscale</button>
+      <button data-filter="contrast">Contrast +</button>
+      <button data-filter="estampage">Digital Estampage</button>
+      <button data-filter="edges">Edge Highlight</button>
+    </div>
+    <div class="canvas-stage"><canvas id="work2" width="480" height="320"></canvas></div>
+    <div class="slider-row" id="threshRow" style="display:none;">
+      <span>Threshold</span><input type="range" id="threshSlider" min="20" max="235" value="130"><span id="threshVal">130</span>
+    </div>
+    <p class="footnote">"Digital Estampage" mimics the traditional ink-rubbing (squeeze) technique epigraphists use in the field — high-contrast binarisation makes incised strokes readable independent of stone colour or lighting.</p>
+  </div>
+
+  <!-- ===================== STAGE 3: DATA PREPARATION ===================== -->
+  <div class="tabpanel" id="panel-3">
+    <div class="stage-head"><h2>Data Preparation</h2><span class="stage-note">sign segmentation</span></div>
+    <div class="real-banner">✓ Real: connected-component analysis on the binarised image — a genuine classical computer-vision technique, not a deep model.</div>
+    <div class="grid2">
+      <div>
+        <div class="toolbar">
+          <button class="primary" id="btnSegment" disabled>Segment signs</button>
+          <button id="btnClearBoxes" disabled>Clear</button>
+        </div>
+        <div class="canvas-stage"><canvas id="work3" width="480" height="320"></canvas><canvas id="overlay3" width="480" height="320"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Segmentation result</h3>
+        <div id="segSummary" class="stat-line">No segmentation run yet.</div>
+        <p class="footnote">Each detected region becomes a candidate sign, isolated and indexed left-to-right — the unit that recognition, in the next stage, will operate on.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== STAGE 4: RECOGNITION ===================== -->
+  <div class="tabpanel" id="panel-4">
+    <div class="stage-head"><h2>Sign Recognition</h2><span class="stage-note">simulated classification</span></div>
+    <div class="sim-banner">⚠ Simulated: labels and confidence scores are randomly assigned for demonstration. A real system needs a CNN/ViT trained on thousands of annotated exemplars per sign — see DeepMind/Oxford's <i>Ithaca</i> (2022) for the Greek-epigraphy equivalent.</div>
+    <div class="toolbar"><button class="primary" id="btnRecognize" disabled>Run recognition on segmented signs</button></div>
+    <div class="card"><h3>Reading, left to right</h3><div id="recList"><div class="rec-empty">Segment signs in Stage 3 first, then run recognition here.</div></div></div>
+  </div>
+
+  <!-- ===================== STAGE 5: PATTERN ANALYSIS ===================== -->
+  <div class="tabpanel" id="panel-5">
+    <div class="stage-head"><h2>Pattern Analysis</h2><span class="stage-note">frequency &amp; sequence statistics</span></div>
+    <div class="real-banner">✓ Real: frequency counts and adjacent-pair (bigram) statistics computed live over the recognition output above. The underlying labels are simulated, but the statistics are genuinely calculated from whatever data exists.</div>
+    <div class="toolbar"><button class="primary" id="btnAnalyze" disabled>Analyze patterns</button></div>
+    <div class="grid2">
+      <div class="card"><h3>Sign frequency</h3><table class="data-table" id="freqTable"><tbody><tr><td class="rec-empty">Run recognition first.</td></tr></tbody></table></div>
+      <div class="card"><h3>Recurring adjacent pairs (bigrams)</h3><table class="data-table" id="bigramTable"><tbody><tr><td class="rec-empty">Run recognition first.</td></tr></tbody></table></div>
+    </div>
+    <p class="footnote">On real undeciphered corpora, this is the genuinely useful layer: sign-frequency distributions, positional statistics, and recurring sequences can suggest formulae, word-boundaries, or structural regularities — long before any sign is "read" in the linguistic sense. This is the level at which computational work on scripts like Indus and Linear A has mostly operated.</p>
+  </div>
+
+  <!-- ===================== STAGE 6: COMPARATIVE STUDY ===================== -->
+  <div class="tabpanel" id="panel-6">
+    <div class="stage-head"><h2>Comparative Study</h2><span class="stage-note">Tamil script across periods</span></div>
+    <div class="real-banner">✓ Real: Tamil-Brahmi and Modern Tamil glyphs below are genuine Unicode characters, correctly rendered. Vatteluttu has no reliable Unicode font, so it is shown as a described placeholder rather than an invented glyph.</div>
+    <label class="field">Choose a letter to compare across periods</label>
+    <select id="letterSelect">
+      <option value="a">a</option>
+      <option value="ka">ka</option>
+      <option value="ma">ma</option>
+      <option value="na">na</option>
+      <option value="va">va</option>
+      <option value="ta">ta</option>
+    </select>
+    <div class="grid3" id="compareGrid" style="margin-top:16px;"></div>
+    <p class="footnote">The broad, cautiously-stated trajectory: Tamil-Brahmi (as attested in cave and pottery inscriptions from roughly the 2nd century BCE, per Iravatham Mahadevan's corpus) gives way over centuries to Vatteluttu ("round script"), and later to the Grantha-influenced square Tamil script that underlies the modern alphabet. The changes are gradual — loop simplification, vowel-marker evolution, retention or loss of Brahmi-derived stroke forms — which is exactly the kind of quantifiable diachronic data a palaeographic model would need. This comparison panel is illustrative; a real study would need many dated exemplars per letter, not one representative glyph.</p>
+  </div>
+
+  <!-- ===================== STAGE 7: HUMAN VERIFICATION ===================== -->
+  <div class="tabpanel" id="panel-7">
+    <div class="stage-head"><h2>Human Verification</h2><span class="stage-note">the non-negotiable checkpoint</span></div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Verification protocol</h3>
+        <div class="checklist">
+          <label><input type="checkbox" class="verify-chk"> Compared against the original inscription / estampage, not just the enhanced image</label>
+          <label><input type="checkbox" class="verify-chk"> Cross-checked with palaeographic parallels from comparable sites and periods</label>
+          <label><input type="checkbox" class="verify-chk"> Reviewed by a qualified epigraphist</label>
+          <label><input type="checkbox" class="verify-chk"> Contextualised against archaeological findspot and associated evidence</label>
+        </div>
+        <span class="status-badge" id="statusBadge">AI-suggested · unverified</span>
+        <div class="footnote">A reading only enters the record once every box is checked by a person qualified to check it.</div>
+      </div>
+      <div class="card">
+        <h3>Per-sign verification</h3>
+        <div id="perSignList"><div class="rec-empty">Run recognition in Stage 4 first.</div></div>
+        <div class="bar" style="margin-top:10px;"><div class="bar-fill" id="verifyBar" style="width:0%;"></div></div>
+        <div class="footnote" id="verifyPct">0% of signs individually confirmed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== STAGE 8: INTERPRETATION ===================== -->
+  <div class="tabpanel" id="panel-8">
+    <div class="stage-head"><h2>Interpretation</h2><span class="stage-note">assembling a scholarly reading</span></div>
+    <div class="real-banner">✓ Real: the draft reading is genuinely assembled from Stage 4's output. The metadata fields and notes below are yours to fill in — this is a working template, not an AI-generated interpretation.</div>
+    <div class="toolbar"><button class="primary" id="btnDraft" disabled>Generate draft reading from recognized signs</button></div>
+    <label class="field">Draft reading (AI-assembled, edit freely)</label>
+    <textarea id="draftReading" placeholder="Draft reading will appear here after Stage 4…"></textarea>
+    <div class="grid3" style="margin-top:14px;">
+      <div><label class="field">Site / findspot</label><input type="text" id="metaSite" placeholder="e.g. Tirupparankunram, Tamil Nadu"></div>
+      <div><label class="field">Proposed date range</label><input type="text" id="metaDate" placeholder="e.g. 2nd century BCE"></div>
+      <div><label class="field">Material / medium</label><input type="text" id="metaMaterial" placeholder="e.g. natural cavern, stone"></div>
+    </div>
+    <label class="field">Scholar's interpretive notes</label>
+    <textarea id="scholarNotes" placeholder="Historical context, linguistic notes, uncertainties, alternative readings…"></textarea>
+  </div>
+
+  <!-- ===================== STAGE 9: DIGITAL DATABASE ===================== -->
+  <div class="tabpanel" id="panel-9">
+    <div class="stage-head"><h2>Digital Database</h2><span class="stage-note">functional in-memory corpus</span></div>
+    <div class="real-banner">✓ Real: entries are stored in memory for this session and can be exported as an actual JSON file — a working sketch of what a growing, machine-readable corpus needs to look like.</div>
+    <div class="toolbar">
+      <button class="primary" id="btnAddCorpus" disabled>Add current inscription to corpus</button>
+      <button id="btnExportCorpus" disabled>Export corpus as JSON</button>
+    </div>
+    <table class="data-table" id="corpusTable">
+      <thead><tr><th></th><th>ID</th><th>Signs</th><th>Verified</th><th>Reading</th><th>Site</th><th>Added</th></tr></thead>
+      <tbody id="corpusBody"><tr><td colspan="7" class="rec-empty">No entries yet — complete Stages 1–8, then add this inscription here.</td></tr></tbody>
+    </table>
+    <p class="footnote">Each cycle through the pipeline that gets added here also becomes future training data — over time, corpus and model quality reinforce each other, provided every entry has passed Stage 7.</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const W = 480, H = 320;
+  const state = { original:null, signs:[], enhanced:false, corpus:[] };
+
+  /* ---------------- tab navigation ---------------- */
+  const tabbar = document.getElementById('tabbar');
+  tabbar.addEventListener('click', (e)=>{
+    const btn = e.target.closest('.tab-btn');
+    if(!btn) return;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+  });
+  function markDone(n){ document.querySelector(`.tab-btn[data-tab="${n}"]`).classList.add('done'); }
+
+  function clamp(v){ return Math.max(0, Math.min(255, v)); }
+
+  /* ---------------- Stage 1: Documentation ---------------- */
+  const work = document.getElementById('work'), wctx = work.getContext('2d');
+  const overlay = document.getElementById('overlay'), octx = overlay.getContext('2d');
+  const emptyState = document.getElementById('emptyState');
+
+  function setOriginalFromImage(img){
+    wctx.fillStyle = '#c9bd9e'; wctx.fillRect(0,0,W,H);
+    const scale = Math.min(W/img.width, H/img.height);
+    const dw = img.width*scale, dh = img.height*scale, dx=(W-dw)/2, dy=(H-dh)/2;
+    wctx.drawImage(img, dx, dy, dw, dh);
+    state.original = wctx.getImageData(0,0,W,H);
+    emptyState.style.display='none';
+    markDone(1);
+    // reset downstream state
+    state.signs = []; state.enhanced = false;
+    octx.clearRect(0,0,W,H);
+    document.getElementById('btnSegment').disabled = false;
+    resetDownstreamUI();
+    render2('original');
+  }
+  document.getElementById('btnUploadTrigger').addEventListener('click', ()=>document.getElementById('fileInput').click());
+  document.getElementById('fileInput').addEventListener('change', (e)=>{
+    const file = e.target.files[0]; if(!file) return;
+    const img = new Image();
+    img.onload = ()=> setOriginalFromImage(img);
+    img.src = URL.createObjectURL(file);
+  });
+  document.getElementById('btnSample').addEventListener('click', ()=>{
+    const off = document.createElement('canvas'); off.width=W; off.height=H;
+    const c = off.getContext('2d');
+    const grad = c.createLinearGradient(0,0,W,H);
+    grad.addColorStop(0,'#cdbd97'); grad.addColorStop(1,'#b7a67f');
+    c.fillStyle = grad; c.fillRect(0,0,W,H);
+    const tex = c.getImageData(0,0,W,H);
+    for(let i=0;i<tex.data.length;i+=4){
+      const n=(Math.random()-0.5)*34;
+      tex.data[i]=clamp(tex.data[i]+n); tex.data[i+1]=clamp(tex.data[i+1]+n); tex.data[i+2]=clamp(tex.data[i+2]+n);
+    }
+    c.putImageData(tex,0,0);
+    c.font = "58px 'Noto Sans Brahmi'"; c.fillStyle='rgba(50,40,28,0.72)'; c.textBaseline='middle';
+    c.fillText('𑀅𑀲𑁄𑀓 𑀓𑀺𑀦𑀿𑀭 𑀢𑀫𑀺𑀵𑀺', 26, H/2-10);
+    c.font = "20px 'JetBrains Mono'"; c.fillStyle='rgba(50,40,28,0.5)';
+    c.fillText('Synthetic sample — not a real inscription', 26, H/2+55);
+    const small = document.createElement('canvas'); small.width=W/3; small.height=H/3;
+    small.getContext('2d').drawImage(off,0,0,small.width,small.height);
+    c.imageSmoothingEnabled=true; c.globalAlpha=0.35; c.drawImage(small,0,0,W,H); c.globalAlpha=1;
+    const img = new Image(); img.onload = ()=> setOriginalFromImage(img); img.src = off.toDataURL();
+  });
+
+  function resetDownstreamUI(){
+    document.getElementById('segSummary').textContent = 'No segmentation run yet.';
+    document.getElementById('btnRecognize').disabled = true;
+    document.getElementById('recList').innerHTML = '<div class="rec-empty">Segment signs in Stage 3 first, then run recognition here.</div>';
+    document.getElementById('btnAnalyze').disabled = true;
+    document.getElementById('freqTable').querySelector('tbody').innerHTML = '<tr><td class="rec-empty">Run recognition first.</td></tr>';
+    document.getElementById('bigramTable').querySelector('tbody').innerHTML = '<tr><td class="rec-empty">Run recognition first.</td></tr>';
+    document.getElementById('perSignList').innerHTML = '<div class="rec-empty">Run recognition in Stage 4 first.</div>';
+    document.getElementById('verifyBar').style.width='0%';
+    document.getElementById('verifyPct').textContent='0% of signs individually confirmed';
+    document.getElementById('btnDraft').disabled = true;
+    document.getElementById('draftReading').value='';
+    document.getElementById('btnAddCorpus').disabled = true;
+  }
+
+  /* ---------------- Stage 2: Enhancement ---------------- */
+  const work2 = document.getElementById('work2'), wctx2 = work2.getContext('2d');
+  const threshRow = document.getElementById('threshRow'), threshSlider = document.getElementById('threshSlider'), threshVal = document.getElementById('threshVal');
+  let activeFilter = 'original';
+
+  function toGray(src){ const d=new Uint8ClampedArray(src.data); for(let i=0;i<d.length;i+=4){ const g=0.299*d[i]+0.587*d[i+1]+0.114*d[i+2]; d[i]=d[i+1]=d[i+2]=g; } return new ImageData(d,W,H); }
+  function contrastStretch(src,factor){ const g=toGray(src),d=g.data; for(let i=0;i<d.length;i+=4){ const v=clamp((d[i]-128)*factor+128); d[i]=d[i+1]=d[i+2]=v; } return g; }
+  function binarize(src,thresh){ const g=toGray(src),d=g.data; for(let i=0;i<d.length;i+=4){ const v = d[i]<thresh?0:255; d[i]=d[i+1]=d[i+2]=v; } return g; }
+  function estampageView(src,thresh){ const g=toGray(src),d=g.data; for(let i=0;i<d.length;i+=4){ const ink=d[i]<thresh; if(ink){d[i]=246;d[i+1]=241;d[i+2]=228;} else {d[i]=26;d[i+1]=22;d[i+2]=18;} } return g; }
+  function sobel(src){
+    const g=toGray(src).data; const out=new Uint8ClampedArray(src.data.length);
+    const gx=[-1,0,1,-2,0,2,-1,0,1], gy=[-1,-2,-1,0,0,0,1,2,1];
+    for(let y=1;y<H-1;y++) for(let x=1;x<W-1;x++){
+      let sx=0,sy=0,k=0;
+      for(let j=-1;j<=1;j++) for(let i2=-1;i2<=1;i2++){ const idx=((y+j)*W+(x+i2))*4; const val=g[idx]; sx+=val*gx[k]; sy+=val*gy[k]; k++; }
+      const mag=clamp(Math.sqrt(sx*sx+sy*sy)); const p=(y*W+x)*4; out[p]=out[p+1]=out[p+2]=255-mag; out[p+3]=255;
+    }
+    return new ImageData(out,W,H);
+  }
+  function render2(filter){
+    if(!state.original) return;
+    activeFilter = filter;
+    let img;
+    if(filter==='original') img=state.original;
+    else if(filter==='gray') img=toGray(state.original);
+    else if(filter==='contrast') img=contrastStretch(state.original,1.6);
+    else if(filter==='estampage') img=estampageView(state.original, parseInt(threshSlider.value,10));
+    else if(filter==='edges') img=sobel(state.original);
+    wctx2.putImageData(img,0,0);
+    threshRow.style.display = filter==='estampage' ? 'flex':'none';
+    document.querySelectorAll('#filterBar button').forEach(b=>b.classList.toggle('active-filter', b.dataset.filter===filter));
+    if(filter!=='original'){ state.enhanced=true; markDone(2); }
+  }
+  document.getElementById('filterBar').addEventListener('click',(e)=>{ const b=e.target.closest('button[data-filter]'); if(b) render2(b.dataset.filter); });
+  threshSlider.addEventListener('input', ()=>{ threshVal.textContent=threshSlider.value; if(activeFilter==='estampage') render2('estampage'); });
+
+  /* ---------------- Stage 3: Data Preparation (segmentation) ---------------- */
+  const work3 = document.getElementById('work3'), wctx3 = work3.getContext('2d');
+  const overlay3 = document.getElementById('overlay3'), octx3 = overlay3.getContext('2d');
+
+  function segment(){
+    if(!state.original) return;
+    const thresh = parseInt(threshSlider.value,10) || 130;
+    wctx3.putImageData(estampageView(state.original, thresh), 0, 0); // show estampage view as the working surface here
+    const bin = binarize(state.original, thresh).data;
+    const visited = new Uint8Array(W*H);
+    const boxes = [];
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      const idx=y*W+x; if(visited[idx]) continue;
+      const isInk = bin[idx*4] < 128; visited[idx]=1; if(!isInk) continue;
+      let minX=x,maxX=x,minY=y,maxY=y,count=0; const stack=[idx];
+      while(stack.length){
+        const cur=stack.pop(); const cy=(cur/W)|0, cx=cur-cy*W; count++;
+        if(cx<minX)minX=cx; if(cx>maxX)maxX=cx; if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
+        const neigh=[cur-1,cur+1,cur-W,cur+W];
+        for(const n of neigh){ if(n<0||n>=W*H) continue; const ny=(n/W)|0, nx=n-ny*W; if(Math.abs(nx-cx)>1) continue; if(visited[n]) continue; visited[n]=1; if(bin[n*4]<128) stack.push(n); }
+      }
+      const bw=maxX-minX+1, bh=maxY-minY+1, area=bw*bh;
+      if(count>=8 && bw>=4 && bh>=6 && area<(W*H*0.25)) boxes.push({x:minX,y:minY,w:bw,h:bh});
+    }
+    boxes.sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+    const kept = boxes.slice(0,24).sort((a,b)=>a.x-b.x);
+    state.signs = kept.map((b,i)=>({id:i, x:b.x, y:b.y, w:b.w, h:b.h, label:null, ch:null, conf:null, verified:false}));
+    octx3.clearRect(0,0,W,H); octx3.lineWidth=1.5; octx3.strokeStyle='#b1471f'; octx3.font="10px 'JetBrains Mono'"; octx3.fillStyle='#b1471f';
+    state.signs.forEach((b,i)=>{ octx3.strokeRect(b.x-2,b.y-2,b.w+4,b.h+4); octx3.fillText(String(i+1), b.x-1, b.y-5); });
+    document.getElementById('segSummary').innerHTML = `<b>${state.signs.length}</b> sign-like regions detected at threshold ${thresh}.`;
+    document.getElementById('btnRecognize').disabled = state.signs.length===0;
+    markDone(3);
+  }
+  document.getElementById('btnSegment').addEventListener('click', ()=>{ segment(); document.getElementById('btnClearBoxes').disabled=false; });
+  document.getElementById('btnClearBoxes').addEventListener('click', ()=>{
+    octx3.clearRect(0,0,W,H); state.signs=[]; document.getElementById('segSummary').textContent='Cleared.'; document.getElementById('btnRecognize').disabled=true;
+  });
+
+  /* ---------------- Stage 4: Recognition (simulated) ---------------- */
+  const GLYPH_POOL = [
+    {ch:'𑀅',name:'a'},{ch:'𑀲',name:'sa'},{ch:'𑀓',name:'ka'},{ch:'𑀩',name:'ba'},
+    {ch:'𑀫',name:'ma'},{ch:'𑀯',name:'va'},{ch:'𑀦',name:'na'},{ch:'𑀢',name:'ta'},
+    {ch:'𑀭',name:'ra'},{ch:'𑀤',name:'da'}
+  ];
+  document.getElementById('btnRecognize').addEventListener('click', ()=>{
+    if(state.signs.length===0) return;
+    state.signs.forEach(s=>{
+      const g = GLYPH_POOL[Math.floor(Math.random()*GLYPH_POOL.length)];
+      s.label = g.name; s.ch = g.ch; s.conf = Math.floor(55+Math.random()*40);
+    });
+    const recList = document.getElementById('recList');
+    recList.innerHTML = state.signs.map((s,i)=>{
+      const cls = s.conf<70?'low':'';
+      return `<div class="sign-row"><span>#${i+1} <span class="sign">${s.ch}</span> ${s.label}</span><span class="conf ${cls}">${s.conf}%</span></div>`;
+    }).join('');
+    document.getElementById('btnAnalyze').disabled = false;
+    document.getElementById('btnDraft').disabled = false;
+    buildPerSignList();
+    markDone(4);
+  });
+
+  /* ---------------- Stage 5: Pattern Analysis ---------------- */
+  document.getElementById('btnAnalyze').addEventListener('click', ()=>{
+    if(state.signs.length===0 || !state.signs[0].label) return;
+    const freq = {};
+    state.signs.forEach(s=>{ freq[s.label] = (freq[s.label]||0)+1; });
+    const freqRows = Object.entries(freq).sort((a,b)=>b[1]-a[1])
+      .map(([name,count])=>`<tr><td>${name}</td><td>${count}</td><td>${Math.round(100*count/state.signs.length)}%</td></tr>`).join('');
+    document.getElementById('freqTable').innerHTML = '<thead><tr><th>Sign</th><th>Count</th><th>Share</th></tr></thead><tbody>'+freqRows+'</tbody>';
+
+    const bigrams = {};
+    for(let i=0;i<state.signs.length-1;i++){
+      const key = state.signs[i].label + ' → ' + state.signs[i+1].label;
+      bigrams[key] = (bigrams[key]||0)+1;
+    }
+    const bigramRows = Object.entries(bigrams).sort((a,b)=>b[1]-a[1]).slice(0,8)
+      .map(([pair,count])=>`<tr><td>${pair}</td><td>${count}${count>1?' ⟲ repeats':''}</td></tr>`).join('') || '<tr><td class="rec-empty">No pairs to compare (need ≥2 signs).</td></tr>';
+    document.getElementById('bigramTable').innerHTML = '<thead><tr><th>Adjacent pair</th><th>Occurrences</th></tr></thead><tbody>'+bigramRows+'</tbody>';
+    markDone(5);
+  });
+
+  /* ---------------- Stage 6: Comparative Study ---------------- */
+  const TAMIL_DATA = {
+    a:  { brahmi:'𑀅', tamil:'அ', vatt:'rounded, open form; earliest Vatteluttu vowels retain a Brahmi-like structure with looped extensions' },
+    ka: { brahmi:'𑀓', tamil:'க', vatt:'a looped, cursive descendant of Brahmi ka; strokes become rounded rather than angular' },
+    ma: { brahmi:'𑀫', tamil:'ம', vatt:'closed loop shape, precursor to the modern rounded ம; distinctive across Chera/Pandya copper plates' },
+    na: { brahmi:'𑀦', tamil:'ந', vatt:'simplified, curved stroke; one of the more stable forms across the transition' },
+    va: { brahmi:'𑀯', tamil:'வ', vatt:'triangular Brahmi form gradually rounds into a looped Vatteluttu, then modern, shape' },
+    ta: { brahmi:'𑀢', tamil:'த', vatt:'flattened loop form; shows clear continuity into the modern square Tamil த' }
+  };
+  function renderCompare(letter){
+    const d = TAMIL_DATA[letter];
+    document.getElementById('compareGrid').innerHTML = `
+      <div class="compare-col brahmi">
+        <div class="period">Tamil-Brahmi · c. 2nd BCE–4th CE</div>
+        <div class="glyph">${d.brahmi}</div>
+        <div class="note">Rendered via the generic Unicode Brahmi block as a proxy — actual Tamil-Brahmi exemplars (per Mahadevan's corpus) show regional letter-form variation not fully captured here.</div>
+      </div>
+      <div class="compare-col placeholder">
+        <div class="period">Vatteluttu · c. 7th–11th CE</div>
+        <div class="glyph">?</div>
+        <div class="note">No reliable Unicode font exists for Vatteluttu, so no glyph is rendered. Documented tendency: ${d.vatt}.</div>
+      </div>
+      <div class="compare-col tamil">
+        <div class="period">Modern Tamil</div>
+        <div class="glyph">${d.tamil}</div>
+        <div class="note">Standard Unicode Tamil, descended (via Grantha influence) from the square Tamil script that superseded Vatteluttu.</div>
+      </div>`;
+    markDone(6);
+  }
+  document.getElementById('letterSelect').addEventListener('change', (e)=> renderCompare(e.target.value));
+  renderCompare('a');
+
+  /* ---------------- Stage 7: Human Verification ---------------- */
+  const badge = document.getElementById('statusBadge');
+  document.querySelectorAll('.verify-chk').forEach(chk=>{
+    chk.addEventListener('change', ()=>{
+      const all = [...document.querySelectorAll('.verify-chk')].every(c=>c.checked);
+      badge.textContent = all ? 'Epigraphist-verified' : 'AI-suggested · unverified';
+      badge.classList.toggle('verified', all);
+      if(all) markDone(7);
+    });
+  });
+  function buildPerSignList(){
+    const list = document.getElementById('perSignList');
+    list.innerHTML = state.signs.map((s,i)=>
+      `<label class="sign-row" style="cursor:pointer;"><span><input type="checkbox" data-sid="${i}" class="persign-chk"> #${i+1} <span class="sign">${s.ch}</span> ${s.label}</span><span class="conf ${s.conf<70?'low':''}">${s.conf}%</span></label>`
+    ).join('');
+    document.querySelectorAll('.persign-chk').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        state.signs[+cb.dataset.sid].verified = cb.checked;
+        updateVerifyBar();
+      });
+    });
+    updateVerifyBar();
+  }
+  function updateVerifyBar(){
+    if(state.signs.length===0) return;
+    const verified = state.signs.filter(s=>s.verified).length;
+    const pct = Math.round(100*verified/state.signs.length);
+    document.getElementById('verifyBar').style.width = pct+'%';
+    document.getElementById('verifyPct').textContent = `${pct}% of signs individually confirmed (${verified}/${state.signs.length})`;
+  }
+
+  /* ---------------- Stage 8: Interpretation ---------------- */
+  document.getElementById('btnDraft').addEventListener('click', ()=>{
+    if(state.signs.length===0 || !state.signs[0].label) return;
+    const reading = state.signs.map(s=>s.ch).join(' ');
+    const translit = state.signs.map(s=>s.label).join('-');
+    document.getElementById('draftReading').value = `${reading}\n\n(transliteration guess: ${translit})`;
+    document.getElementById('btnAddCorpus').disabled = false;
+    markDone(8);
+  });
+
+  /* ---------------- Stage 9: Digital Database ---------------- */
+  document.getElementById('btnAddCorpus').addEventListener('click', ()=>{
+    const verified = state.signs.filter(s=>s.verified).length;
+    const pct = state.signs.length ? Math.round(100*verified/state.signs.length) : 0;
+    const entry = {
+      id: 'INS-' + (state.corpus.length+1).toString().padStart(3,'0'),
+      thumb: work.toDataURL('image/png'),
+      signCount: state.signs.length,
+      verifiedPct: pct,
+      reading: document.getElementById('draftReading').value || '',
+      site: document.getElementById('metaSite').value || '—',
+      date: document.getElementById('metaDate').value || '—',
+      material: document.getElementById('metaMaterial').value || '—',
+      notes: document.getElementById('scholarNotes').value || '',
+      added: new Date().toISOString()
+    };
+    state.corpus.push(entry);
+    renderCorpus();
+    document.getElementById('btnExportCorpus').disabled = false;
+    markDone(9);
+  });
+  function renderCorpus(){
+    const body = document.getElementById('corpusBody');
+    if(state.corpus.length===0){ body.innerHTML = '<tr><td colspan="7" class="rec-empty">No entries yet.</td></tr>'; return; }
+    body.innerHTML = state.corpus.map(e=>`
+      <tr>
+        <td><img class="thumb" src="${e.thumb}"></td>
+        <td>${e.id}</td>
+        <td>${e.signCount}</td>
+        <td>${e.verifiedPct}%</td>
+        <td>${(e.reading||'').split('\\n')[0].slice(0,28)}</td>
+        <td>${e.site}</td>
+        <td>${new Date(e.added).toLocaleTimeString()}</td>
+      </tr>`).join('');
+  }
+  document.getElementById('btnExportCorpus').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(state.corpus, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'epigraphai-corpus-demo.json';
+    a.click();
+  });
+
+})();
+</script>
+</body>
+</html>
